@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "es2022",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "es2022"
+    ],
+    "moduleDetection": "force",
+    "strict": false,
+    "checkJs": false
+  },
+  "include": [
+    "public/**/*.js"
+  ]
+}
