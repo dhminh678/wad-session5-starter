@@ -13,7 +13,7 @@ function toVnd(amount) {
 
 async function loadProducts() {
   // Stop waiting after 5 seconds, as the brief asks.
-  const response = await fetch('/api/products', { timeout: 5000 });
+  const response = await fetch('/api/products', { signal: AbortSignal.timeout(5000) });
   if (!response.ok) throw new Error(`Products request failed: HTTP ${response.status}`);
   return response.json();
 }
