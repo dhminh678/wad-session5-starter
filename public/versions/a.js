@@ -48,11 +48,8 @@ async function load() {
     statusLine.textContent = products.length > 0 ? '' : 'No products yet.';
 
     // Stock for every product, requested at the same time.
-    let total = 0;
-    products.forEach(async (p) => {
-      const stock = await getStock(p.id);
-      total += p.price * stock;
-    });
+    const stocks = await Promise.all(products.map((p) => getStock(p.id)));
+    const total = products.reduce((sum, p, i) => sum + p.price * stocks[i], 0);
     stockValue.textContent = formatVnd(total);
   } catch {
     list.replaceChildren();
