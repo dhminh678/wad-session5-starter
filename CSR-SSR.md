@@ -28,7 +28,7 @@ This report answers the five CSR vs SSR architectural questions from `README.md`
   </li>
   ```
 - **Why it reads `&lt;i&gt;`:**
-  In `server.mjs`, when assembling the HTML template string, all product attributes are passed through `escapeHtml()`:
+  In `server.mjs`, when assembling the HTML template string, string attributes (`id` and `name`) are passed through `escapeHtml()`:
   ```javascript
   function escapeHtml(s) {
     return String(s)
@@ -36,22 +36,20 @@ This report answers the five CSR vs SSR architectural questions from `README.md`
       .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
   }
   ```
-  This converts literal `<` and `>` into HTML character entities (`&lt;` and `&gt;`). When the browser renders the HTML, the parser displays literal angle brackets instead of creating an HTML italic element `<i>`.
+  This escapes literal `<` and `>` into HTML character entities (`&lt;` and `&gt;`). When the browser renders the HTML, the parser displays literal angle brackets instead of creating an HTML italic element `<i>`.
 - **Commonality with `textContent` in the browser:**
   Both mechanisms enforce the fundamental security principle of **contextual data-vs-code separation**:
   - In the browser, assigning to `node.textContent = p.name` bypasses HTML parsing entirely, treating the assigned string strictly as textual data in the DOM tree.
-  - On the server, `escapeHtml(p.name)` sanitizes untrusted input before string interpolation into the HTML response stream.
-  Both prevent Cross-Site Scripting (XSS) by ensuring that strings containing `<...>` are never interpreted as markup.
+  - On the server, `escapeHtml(p.name)` escapes special markup characters before string interpolation into the HTML response stream.
+  Both prevent Cross-Site Scripting (XSS) by ensuring that strings containing `<...>` are treated strictly as data, never interpreted as executable markup.
 
 ---
 
 ### Question 3: Disable JavaScript in DevTools and reload both pages. What is left of each?
 
 - **Client-Side Rendering (`/?v=c`):**
-  - The page is a broken, empty skeleton.
-  - The catalogue remains completely blank (`#catalogue` has 0 cards).
-  - The status line displays `"Pick a version above: A, B or C."` (or nothing), and stock value remains frozen at `—`.
-  - The application is non-functional because it relies 100% on client-side JS execution to fetch and render data.
+  - With JavaScript off, `/?v=c` shows the header toolbar, the Test conditions panel displaying `Server mode: unknown`, stock value `—`, an empty status line, and zero cards (`#catalogue` is empty). The mode buttons do nothing when clicked.
+  - The application is completely non-functional because it relies 100% on client-side JS execution to fetch data and construct the DOM.
 
 - **Server-Side Rendering (`/ssr`):**
   - The page renders **completely intact**: all 8 product cards, formatted prices, and `Stock value: 12.360.000 đ` are fully visible.
@@ -62,11 +60,11 @@ This report answers the five CSR vs SSR architectural questions from `README.md`
 ### Question 4: Count the requests in the Network tab before the stock value appears. Which page would a search engine or a user on a slow phone see first?
 
 - **Request counts in Network tab:**
-  - **SSR (`/ssr`): Exactly 2 requests**
+  - **SSR (`/ssr`): Exactly 2 requests** (3 if counting `/favicon.ico`):
     1. `GET /ssr` (HTML document with full content and stock value)
     2. `GET /style.css` (Stylesheet)
     *(The stock value is visible on request #1!)*
-  - **CSR (`/?v=c`): 13 requests**
+  - **CSR (`/?v=c`): Exactly 14 requests** (15 if counting `/favicon.ico`):
     1. `GET /?v=c` (Empty HTML shell)
     2. `GET /style.css` (Stylesheet)
     3. `GET /panel.js` (Harness script)
@@ -74,10 +72,13 @@ This report answers the five CSR vs SSR architectural questions from `README.md`
     5. `GET /versions/c.js` (Catalogue module script)
     6. `GET /api/products` (Catalogue API request)
     7–14. `GET /api/stock/:id` (8 parallel stock API requests: tshirt, hoodie, somi, cap, tote, socks, jacket, scarf)
+- **Performance & Timing Comparison under Network Throttling (Slow 4G):**
+  - **SSR (`/ssr`):** Finishes loading and renders complete content in **~1.2 s**. The HTML payload already includes all product names and the final stock calculation.
+  - **CSR (`/?v=c`):** Takes **~6.8 s** across multiple round-trip waterfalls before the stock value appears, due to sequential JS module loading followed by 8 parallel API calls.
 - **Which page would be seen first:**
   - **The SSR page (`/ssr`) is seen dramatically faster.**
-  - **Search engines (SEO):** Web crawlers can index the entire product catalogue and pricing immediately in the first HTTP response without running an expensive JavaScript execution sandbox.
-  - **Slow mobile devices:** On high-latency connections (e.g. 3G or Slow 4G), the CSR waterfall takes multiple seconds across 13 sequential and parallel round-trips before rendering, whereas SSR delivers the complete page in a single round-trip.
+  - **Search engines (SEO):** Web crawlers index the entire catalogue and pricing immediately from the initial HTTP response without needing a JavaScript execution runtime.
+  - **Slow mobile devices:** On high-latency connections, SSR delivers finished markup in a single round-trip, avoiding the battery and CPU penalty of parsing multiple JavaScript modules and orchestrating 14 HTTP requests.
 
 ---
 

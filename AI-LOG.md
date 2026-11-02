@@ -1,5 +1,7 @@
 # AI-LOG.md — Catalogue Loader & Audit (CSC13008)
 
+Note: these entries were first written on 2026-10-30 at 17:06, after the last fix at 13:01, and expanded at 17:12. They are a reconstruction, not a log kept as I went.
+
 ## 2026-10-30 — review original versions A, B, and C against brief.md
 Tool: Gemini 3.8 Flash in Antigravity.
 Asked for: Review the three original files `public/versions/a.js`, `public/versions/b.js`, and `public/versions/c.js` against the specification in `brief.md` to identify all bugs, contract violations, syntax or runtime issues, and edge-case defects in each version before seeing my verdicts.
@@ -18,15 +20,22 @@ Rejected: A proposed sequential loop (`for (const p of products) { const s = awa
 Tool: Gemini 3.8 Flash in Antigravity.
 Asked for: In `public/versions/b.js`, rows 6 and 8 fail because `fetch('/api/products', { timeout: 5000 })` at line 16 uses an invalid option that native fetch ignores and TypeScript rejects; replace `{ timeout: 5000 }` with `{ signal: AbortSignal.timeout(5000) }` so hanging requests abort after 5 seconds without type errors.
 Kept: Using `{ signal: AbortSignal.timeout(5000) }` as the second argument in `fetch('/api/products', ...)`.
-Changed: In its first patch proposal, the assistant passed `AbortSignal.timeout(5000)` directly as the second parameter (`fetch('/api/products', AbortSignal.timeout(5000))`). Running `npx tsc -p jsconfig.json --checkJs` immediately failed with `error TS2345: Argument of type 'AbortSignal' is not assignable to parameter of type 'RequestInit'`. I corrected it to the required object property: `{ signal: AbortSignal.timeout(5000) }`.
-Rejected: An alternative suggestion to construct a legacy `AbortController` combined with `setTimeout` and `res.on('close')` / `clearTimeout`. That introduced 12 lines of mutable state and timer cleanup boilerplate; native `AbortSignal.timeout(5000)` is modern browser standard, zero-dependency, and immediately passed both Row 6 (aborted at ~5.0 s under `hang` mode) and Row 8 (zero TS errors).
+Changed: In its first patch proposal, the assistant passed `AbortSignal.timeout(5000)` directly as the second parameter (`fetch('/api/products', AbortSignal.timeout(5000))`). Running `npx tsc -p jsconfig.json` with `// @ts-check` at line 1 failed with `error TS2559: Type 'AbortSignal' has no properties in common with type 'RequestInit'`. I corrected it to the required object property: `{ signal: AbortSignal.timeout(5000) }`.
+Rejected: An alternative suggestion to construct a legacy `AbortController` combined with `setTimeout` and `clearTimeout`. That introduced 12 lines of mutable timer state boilerplate; native `AbortSignal.timeout(5000)` is modern browser standard, zero-dependency, and immediately passed both Row 6 (aborted at ~5.0 s under `hang` mode) and Row 8 (zero TS errors under `// @ts-check` + `tsc -p jsconfig.json`).
 
 ## 2026-10-30 — verification of Version C
 Tool: Gemini 3.8 Flash in Antigravity.
 Asked for: Inspect `public/versions/c.js` against all 8 Done means rows, empty mode, and parallel stock constraints to determine if any fix or refactor is needed.
-Kept: The decision to keep Version C completely untouched (`verdict: keep`).
-Changed: Verified all 9 test conditions in the browser and terminal; Row 1–8 and empty passed with zero errors, stock value matched `12.360.000 đ`, and Network tab confirmed parallel dispatch (time spread < 20 ms).
+Kept: The decision to keep Version C completely untouched (`verdict: keep`). Verified all 9 test conditions in the browser and terminal; Row 1–8 and empty passed with zero errors, stock value matched `12.360.000 đ`, and Network tab confirmed parallel dispatch (time spread < 20 ms).
+Changed: Nothing.
 Rejected: The assistant recommended rewriting `let total = 0; products.forEach((p, i) => { total += p.price * stock[i]; })` into `products.reduce(...)` to be "more functional and idiomatic". I rejected this refactoring because unnecessary code modifications on an already passing version violate scope minimalism and risk introducing regressions.
 
 ## 2026-10-30 — CSR vs SSR empirical investigation
 Tool: none — Investigated manually using DevTools Network tab, Settings → Preferences → Debugger → Disable JavaScript, and View page source (`Ctrl+U`) on `http://localhost:5050/?v=c` and `http://localhost:5050/ssr`.
+
+## 2026-11-02 — automated test harness & evidence retake
+Tool: Gemini in Antigravity.
+Asked for: Write `checks/run-table.mjs` to automate running all 8 Done means rows, empty mode, and parallel spread checks across all 3 versions using Puppeteer, and retake the 3 evidence screenshots to show full browser chrome and docked DevTools / VS Code terminal.
+Kept: The automated test runner structure and parallel request timestamp capture.
+Changed: Adjusted wait intervals in `run-table.mjs` to reliably capture slow mode (3.5 s) and hang mode (up to 7 s) without flakiness.
+Rejected: Adding test dependencies into root `package.json`; executed via external Node runtime to keep root repository files strictly identical to starter.
